@@ -64,7 +64,6 @@
           - bridge-utils
           - libvirt
           - virt-install
-          - qemu-kvm
         when: ansible_facts['distribution'] == "Fedora"
         become: yes
         tags:
