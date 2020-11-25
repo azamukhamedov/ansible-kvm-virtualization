@@ -1,0 +1,139 @@
+---
+
+- hosts: all
+
+  vars_prompt:
+    - name: kvm_user
+      prompt: "Configure KVM user"
+      private: no
+
+  tasks:
+
+#KVM on Ubuntu
+  - name: KVM virtualization | Ubuntu
+    block:
+
+      - name: Deploy KVM virtualization environment | Ubuntu
+        action: "{{ ansible_pkg_mgr }}"
+        args:
+          name: "{{ item }}"
+          state: present
+        loop:
+          - qemu-kvm
+          - libvirt-daemon-system
+          - libvirt-clients
+          - bridge-utils
+        become: yes
+        when: ansible_facts['distribution'] == "Ubuntu"
+        tags:
+          - Ubuntu
+
+#KVM on CentOS
+  - name: KVM virtualization | CentOS
+    block:
+
+      - name: Deploy KVM virtualization environment | CentOS
+        action: "{{ ansible_pkg_mgr }}"
+        args:
+          name: "{{ item }}"
+          state: present
+        loop:
+          - qemu-kvm
+          - libvirt
+          - virt-install
+          - libvirt-python
+          - virt-manager
+          - virt-install
+          - libvirt-client
+        when: ansible_facts['distribution'] == "CentOS"
+        become: yes
+        tags:
+          - CentOS
+
+#KVM on Fedora
+  - name: KVM virtualization | Fedora
+    block:
+
+      - name: Deploy KVM virtualization environment | Fedora
+        action: "{{ ansible_pkg_mgr }}"
+        args:
+          name: "{{ item }}"
+          state: present
+        loop:
+          - qemu-kvm
+          - bridge-utils
+          - libvirt
+          - virt-install
+          - qemu-kvm
+        when: ansible_facts['distribution'] == "Fedora"
+        become: yes
+        tags:
+          - Fedora
+
+#Enable the libvirtd service
+  - name: Enable and start the "libvirtd" service
+    service:
+      name: libvirtd
+      state: started
+      enabled: yes
+    become: yes
+    tags:
+      - service
+
+#Identify the CPU vendor
+  - name: Identify the CPU manufacturer of the target server "Intel" or "AMD"
+    shell: "lsmod | grep kvm"
+    register: cpu_vendor
+
+  - name: Display the CPU manufacturer
+    debug:
+      var: cpu_vendor.stdout_lines
+
+#Virtualization Support
+  - name: Validate if the server is configured for libvirt hypervisor
+    command: "virt-host-validate qemu"
+    register: validate_result
+    failed_when: >
+      ('FAIL' in validate_result.stdout) or
+      ('WARN' in validate_result.stdout)
+    tags:
+      - support
+
+#Groups presence
+  - name: Ensure the "libvirt" and "kvm" groups presence
+    group:
+      name: "{{ item }}"
+      state: present
+    loop:
+       - libvirt
+       - kvm
+    become: yes
+    tags:
+      - groups
+
+#Configure the KVM user
+  - name: Configure the user to the "libvirt" and "kvm" groups
+    user:
+      name: "{{ kvm_user }}"
+      groups:
+        - libvirt
+        - kvm
+      append: yes
+    become: yes
+    tags:
+      - attributes
+
+  - name: Display the KVM user
+    debug:
+      msg: "{{ kvm_user }}"
+
+#KVM Testing
+  - name: Test KVM Virtualization installation
+    command: "virsh -c qemu:///system list --all"
+    register: domains
+    tags:
+      - test
+
+  - name: Get the list of KVM VMs domains
+    debug:
+      var: domains.stdout_lines
